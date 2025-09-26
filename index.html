@@ -1,0 +1,90 @@
+<script>
+  const GAS_ENDPOINT = "https://script.google.com/macros/s/AKfycbxG_FgIv83OUw6ZeuZWBpA1cLEMkf1LGpQDuSjl9gVepiP3x-oDZpNsH8owWYSXgSbr/exec";
+
+  async function initializeLiff() {
+    try {
+      const res = await fetch(GAS_ENDPOINT + "?mode=getLiffId");
+      const liffId = await res.text();
+      await liff.init({ liffId });
+
+      if (!liff.isLoggedIn()) {
+        liff.login();
+        return;
+      }
+
+      const profile = await liff.getProfile();
+      document.getElementById("uid").value = profile.userId;
+    } catch (err) {
+      document.getElementById("status").textContent = "LIFF初期化エラー：" + err;
+    }
+  }
+
+  async function loadTitles() {
+    try {
+      const res = await fetch(GAS_ENDPOINT + "?mode=getPendingTitles");
+      const titles = await res.json();
+      const titleInput = document.getElementById("title");
+
+      // 件名候補を datalist に追加（自由入力＋候補表示）
+      const datalist = document.createElement("datalist");
+      datalist.id = "titleList";
+      titles.forEach(title => {
+        const option = document.createElement("option");
+        option.value = title;
+        datalist.appendChild(option);
+      });
+      document.body.appendChild(datalist);
+      titleInput.setAttribute("list", "titleList");
+    } catch (err) {
+      console.error("件名取得エラー:", err);
+    }
+  }
+
+  window.addEventListener("DOMContentLoaded", async () => {
+    await initializeLiff();
+    await loadTitles();
+  });
+
+  document.getElementById("sendBtn").addEventListener("click", () => {
+    const uid = document.getElementById("uid").value;
+    const responder = document.getElementById("responder").value.trim();
+    const title = document.getElementById("title").value.trim();
+    const question = document.getElementById("question").value.trim();
+    const answer = document.getElementById("answer").value.trim();
+    const cause = document.getElementById("cause").value.trim();
+    const status = document.getElementById("statusSelect").value.trim();
+
+    if (!uid || !responder || !title || !question || !status) {
+      document.getElementById("status").textContent = "❌ 必須項目が未入力です。";
+      return;
+    }
+
+    const payload = new FormData();
+    payload.append("uid", uid);
+    payload.append("responder", responder);
+    payload.append("title", title);
+    payload.append("question", question);
+    payload.append("answer", answer);
+    payload.append("cause", cause);
+    payload.append("status", status);
+
+    const photo1 = document.getElementById("photo1").files[0];
+    const photo2 = document.getElementById("photo2").files[0];
+    if (photo1) payload.append("photo1", photo1);
+    if (photo2) payload.append("photo2", photo2);
+
+    document.getElementById("status").textContent = "送信中...";
+
+    fetch(GAS_ENDPOINT, {
+      method: "POST",
+      body: payload
+    })
+      .then(res => res.text())
+      .then(result => {
+        document.getElementById("status").textContent = "✅ 送信完了：" + result;
+      })
+      .catch(err => {
+        document.getElementById("status").textContent = "❌ 送信失敗：" + err;
+      });
+  });
+</script>
