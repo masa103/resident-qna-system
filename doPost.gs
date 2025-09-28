@@ -141,7 +141,7 @@ function doPost(e) {
       Logger.log("🧪 テストモード: ダミーデータを使用");
       data = {
         uid: "test_user_" + Utilities.getUuid().substring(0, 8),
-        responder: "管理者A",
+        responder: "管理人",
         title: "テスト件名_" + Utilities.formatDate(new Date(), "Asia/Tokyo", "MMddHHmm"),
         question: "これはテスト質問です（自動生成）",
         answer: "これはテスト回答です（自動生成）",
@@ -154,6 +154,28 @@ function doPost(e) {
     const now = new Date();
     const qid = "Q" + Utilities.formatDate(now, "Asia/Tokyo", "yyyyMMddHHmmss");
     const groupId = "G" + Utilities.formatDate(now, "Asia/Tokyo", "yyyyMMddHHmmss");
+
+    // デバッグ情報を設定シートに記録
+    try {
+      if (data.debugInfo && data.debugInfo.trim()) {
+        settingSheet.getRange("B25").setValue(data.debugInfo);
+        Logger.log("📝 デバッグ情報を設定シートB25に記録");
+      }
+    } catch (debugError) {
+      Logger.log("⚠️ デバッグ情報記録エラー: " + debugError.message);
+    }
+
+    // Googleドライブフォルダー設定の取得（B19セルから）
+    let photoFolderId = "";
+    try {
+      photoFolderId = settingSheet.getRange("B19").getValue();
+      if (photoFolderId) {
+        const photoFolder = DriveApp.getFolderById(photoFolderId);
+        Logger.log("📁 写真フォルダー確認済み: " + photoFolderId);
+      }
+    } catch (folderError) {
+      Logger.log("⚠️ 写真フォルダー設定エラー: " + folderError.message);
+    }
 
     // 必須フィールドのチェック
     const requiredFields = ["responder", "title", "question", "answer", "cause", "status"];
@@ -256,6 +278,16 @@ function doPost(e) {
     }
 
     // 質問・回答シートへの挿入データ準備（新しい列構造に対応）
+    let questionPhotoUrl = "";
+    let answerPhotoUrl = "";
+    
+    // 写真URLの処理（将来的にファイルアップロードに対応）
+    if (photoFolderId) {
+      // 現在は空のまま、将来的にファイルアップロード機能で使用
+      questionPhotoUrl = "";
+      answerPhotoUrl = "";
+    }
+
     const newRow = [
       qid,                                                           // A列: 問ID
       Utilities.formatDate(now, "Asia/Tokyo", "yyyy/MM/dd HH:mm:ss"), // B列: 質問日時
@@ -265,11 +297,11 @@ function doPost(e) {
       responder,                                                     // F列: 回答者選択
       data.title.toString().trim(),                                  // G列: 質問件名
       data.question.toString().trim(),                               // H列: 質問内容
-      "",                                                            // I列: 写真（質問）
+      questionPhotoUrl,                                              // I列: 写真（質問）
       Utilities.formatDate(now, "Asia/Tokyo", "yyyy/MM/dd HH:mm:ss"), // J列: 最終回答日時
       data.answer.toString().trim(),                                 // K列: 回答
       data.cause.toString().trim(),                                  // L列: 原因
-      "",                                                            // M列: 写真（回答）
+      answerPhotoUrl,                                                // M列: 写真（回答）
       data.status.toString().trim(),                                 // N列: ステータス
       responder,                                                     // O列: 回答者名
       ownerEmail,                                                    // P列: 質問者メール
@@ -306,7 +338,7 @@ function doPost(e) {
         roomNumber,                                                    // G列: 部屋番号
         ownerName,                                                     // H列: 所有者名
         responder,                                                     // I列: 回答者名
-        ""                                                             // J列: 写真URL（空欄）
+        questionPhotoUrl                                               // J列: 写真URL
       ];
       
       taskSheet.appendRow(taskRow);
@@ -377,7 +409,7 @@ function directTest() {
   const mockE = {
     parameter: {
       uid: "test_user_direct_" + Date.now(),
-      responder: "管理者A",
+      responder: "管理人",
       title: "直接テスト件名",
       question: "直接テストの質問です",
       answer: "直接テストの回答です",
