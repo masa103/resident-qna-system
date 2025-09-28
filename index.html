@@ -1,90 +1,739 @@
-<script>
-  const GAS_ENDPOINT = "https://script.google.com/macros/s/AKfycbxG_FgIv83OUw6ZeuZWBpA1cLEMkf1LGpQDuSjl9gVepiP3x-oDZpNsH8owWYSXgSbr/exec";
-
-  async function initializeLiff() {
-    try {
-      const res = await fetch(GAS_ENDPOINT + "?mode=getLiffId");
-      const liffId = await res.text();
-      await liff.init({ liffId });
-
-      if (!liff.isLoggedIn()) {
-        liff.login();
-        return;
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>質問フォーム</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    
+    body { 
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background-color: #f5f5f5;
+      min-height: 100vh;
+      padding: 0;
+      margin: 0;
+    }
+    
+    .container {
+      max-width: 100%;
+      width: 100%;
+      margin: 0;
+      background-color: white;
+      border-radius: 0;
+      box-shadow: none;
+      overflow: hidden;
+    }
+    
+    .header {
+      background: linear-gradient(135deg, #00c300, #009900);
+      color: white;
+      text-align: center;
+      padding: 20px;
+    }
+    
+    .header h1 {
+      font-size: 24px;
+      margin-bottom: 5px;
+    }
+    
+    .content {
+      padding: 15px;
+    }
+    
+    .loading-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(255, 255, 255, 0.9);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 1000;
+    }
+    
+    .loading-spinner {
+      text-align: center;
+    }
+    
+    .spinner {
+      width: 40px;
+      height: 40px;
+      border: 4px solid #f3f3f3;
+      border-top: 4px solid #00c300;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 15px;
+    }
+    
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    
+    .form-group {
+      margin-bottom: 20px;
+    }
+    
+    label { 
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 600;
+      color: #333;
+      font-size: 16px;
+    }
+    
+    .required {
+      color: #e74c3c;
+    }
+    
+    input, textarea, select {
+      width: 100%;
+      padding: 12px 16px;
+      font-size: 16px;
+      border: 2px solid #e0e0e0;
+      border-radius: 8px;
+      transition: border-color 0.3s, box-shadow 0.3s;
+      font-family: inherit;
+      background-color: white;
+    }
+    
+    input:focus, textarea:focus, select:focus {
+      outline: none;
+      border-color: #00c300;
+      box-shadow: 0 0 0 3px rgba(0, 195, 0, 0.1);
+    }
+    
+    textarea {
+      resize: vertical;
+      min-height: 100px;
+    }
+    
+    .hidden {
+      display: none !important;
+    }
+    
+    button {
+      width: 100%;
+      padding: 16px;
+      font-size: 18px;
+      font-weight: 600;
+      background: linear-gradient(135deg, #00c300, #009900);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.3s;
+      margin-top: 20px;
+    }
+    
+    button:hover:not(:disabled) {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0, 195, 0, 0.3);
+    }
+    
+    button:disabled {
+      background: #cccccc;
+      cursor: not-allowed;
+      transform: none;
+      box-shadow: none;
+    }
+    
+    .status {
+      margin-top: 20px;
+      padding: 15px;
+      border-radius: 8px;
+      font-weight: 500;
+      text-align: center;
+    }
+    
+    .status.error {
+      background-color: #ffebee;
+      color: #c62828;
+      border-left: 4px solid #e74c3c;
+    }
+    
+    .status.success {
+      background-color: #e8f5e8;
+      color: #2e7d32;
+      border-left: 4px solid #27ae60;
+    }
+    
+    .status.info {
+      background-color: #e3f2fd;
+      color: #1565c0;
+      border-left: 4px solid #3498db;
+    }
+    
+    .debug-panel {
+      margin-top: 20px;
+      padding: 15px;
+      background-color: #f8f9fa;
+      border-radius: 8px;
+      font-size: 12px;
+      color: #666;
+      border-left: 4px solid #6c757d;
+      max-height: 200px;
+      overflow-y: auto;
+    }
+    
+    .version-info {
+      text-align: center;
+      font-size: 12px;
+      color: #999;
+      margin-top: 20px;
+    }
+    
+    @media (max-width: 480px) {
+      .container {
+        margin: 0;
+        border-radius: 0;
+        width: 100%;
       }
-
-      const profile = await liff.getProfile();
-      document.getElementById("uid").value = profile.userId;
-    } catch (err) {
-      document.getElementById("status").textContent = "LIFF初期化エラー：" + err;
+      
+      .content {
+        padding: 10px;
+      }
+      
+      .header {
+        padding: 15px 10px;
+      }
+      
+      .header h1 {
+        font-size: 18px;
+      }
+      
+      input, textarea, select {
+        padding: 10px 12px;
+      }
     }
-  }
+  </style>
+</head>
+<body>
+  <!-- ローディングオーバーレイ -->
+  <div id="loadingOverlay" class="loading-overlay">
+    <div class="loading-spinner">
+      <div class="spinner"></div>
+      <div>初期化中...</div>
+    </div>
+  </div>
 
-  async function loadTitles() {
-    try {
-      const res = await fetch(GAS_ENDPOINT + "?mode=getPendingTitles");
-      const titles = await res.json();
-      const titleInput = document.getElementById("title");
+  <!-- メインコンテンツ -->
+  <div class="container">
+    <div class="header">
+      <h1>質問・回答フォーム</h1>
+      <div>マンション管理システム</div>
+    </div>
+    
+    <div class="content">
+      <form id="qaForm">
+        <input type="hidden" id="uid" />
+        
+        <div class="form-group">
+          <label for="responder">回答者 <span class="required">*</span></label>
+          <select id="responder" required>
+            <option value="">選択してください</option>
+            <option value="管理人">管理人</option>
+            <option value="理事">理事</option>
+            <option value="会計">会計</option>
+          </select>
+        </div>
 
-      // 件名候補を datalist に追加（自由入力＋候補表示）
-      const datalist = document.createElement("datalist");
-      datalist.id = "titleList";
-      titles.forEach(title => {
-        const option = document.createElement("option");
-        option.value = title;
-        datalist.appendChild(option);
-      });
-      document.body.appendChild(datalist);
-      titleInput.setAttribute("list", "titleList");
-    } catch (err) {
-      console.error("件名取得エラー:", err);
+        <div class="form-group">
+          <label for="titleSelect">件名（選択）<span class="required">*</span></label>
+          <select id="titleSelect" required>
+            <option value="">読み込み中...</option>
+            <option value="新規">新規作成</option>
+          </select>
+        </div>
+
+        <div id="titleInputWrapper" class="form-group hidden">
+          <label for="titleInput">件名（新規入力）<span class="required">*</span></label>
+          <input type="text" id="titleInput" placeholder="新しい件名を入力してください">
+        </div>
+
+        <div class="form-group">
+          <label for="question">質問内容 <span class="required">*</span></label>
+          <textarea id="question" rows="4" placeholder="質問内容を詳しく入力してください" required></textarea>
+        </div>
+
+        <div class="form-group">
+          <label for="photo1">質問写真（オプション）</label>
+          <input type="file" id="photo1" accept="image/*">
+        </div>
+
+        <div class="form-group">
+          <label for="answer">回答 <span class="required">*</span></label>
+          <textarea id="answer" rows="3" placeholder="回答内容を入力してください" required></textarea>
+        </div>
+
+        <div class="form-group">
+          <label for="cause">原因 <span class="required">*</span></label>
+          <textarea id="cause" rows="3" placeholder="原因を入力してください" required></textarea>
+        </div>
+
+        <div class="form-group">
+          <label for="photo2">回答写真（オプション）</label>
+          <input type="file" id="photo2" accept="image/*">
+        </div>
+
+        <div class="form-group">
+          <label for="statusSelect">ステータス <span class="required">*</span></label>
+          <select id="statusSelect" required>
+            <option value="">選択してください</option>
+            <option value="未着手">未着手</option>
+            <option value="着手中">着手中</option>
+            <option value="完了">完了</option>
+            <option value="保留">保留</option>
+            <option value="中止">中止</option>
+          </select>
+        </div>
+
+        <button type="submit" id="sendBtn" disabled>送信する</button>
+        
+        <div id="status" class="status hidden"></div>
+        
+        <div id="debugPanel" class="debug-panel hidden">
+          <strong>デバッグ情報:</strong><br>
+          <div id="debugInfo"></div>
+        </div>
+      </form>
+      
+      <div class="version-info">
+        Version 3.0 - 画面最適化版
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // 設定
+    const CONFIG = {
+      GAS_ENDPOINT: "https://script.google.com/macros/s/AKfycbxG_FgIv83OUw6ZeuZWBpA1cLEMkf1LGpQDuSjl9gVepiP3x-oDZpNsH8owWYSXgSbr/exec",
+      DEBUG_MODE: true,
+      LIFF_ENABLED: true
+    };
+
+    // グローバル状態
+    let appState = {
+      isLiffReady: false,
+      isFormReady: false,
+      currentUserId: '',
+      titles: []
+    };
+
+    // ユーティリティ関数
+    const utils = {
+      log: (message, data = null) => {
+        const timestamp = new Date().toLocaleTimeString();
+        const logMessage = `[${timestamp}] ${message}`;
+        console.log(logMessage, data || '');
+        
+        if (CONFIG.DEBUG_MODE) {
+          const debugInfo = document.getElementById('debugInfo');
+          if (debugInfo) {
+            debugInfo.innerHTML = logMessage + '<br>' + debugInfo.innerHTML;
+          }
+        }
+      },
+
+      showStatus: (message, type = 'info') => {
+        const statusElement = document.getElementById('status');
+        if (statusElement) {
+          statusElement.textContent = message;
+          statusElement.className = `status ${type}`;
+          statusElement.classList.remove('hidden');
+          
+          // 自動で隠す（成功・エラーメッセージの場合）
+          if (type === 'success' || type === 'error') {
+            setTimeout(() => {
+              statusElement.classList.add('hidden');
+            }, 5000);
+          }
+        }
+        utils.log(`Status: ${type} - ${message}`);
+      },
+
+      hideLoading: () => {
+        const overlay = document.getElementById('loadingOverlay');
+        if (overlay) {
+          overlay.style.opacity = '0';
+          setTimeout(() => overlay.remove(), 500);
+        }
+      },
+
+      validateForm: () => {
+        const requiredFields = [
+          { id: 'responder', name: '回答者' },
+          { id: 'titleSelect', name: '件名' },
+          { id: 'question', name: '質問内容' },
+          { id: 'answer', name: '回答' },
+          { id: 'cause', name: '原因' },
+          { id: 'statusSelect', name: 'ステータス' }
+        ];
+
+        let isValid = true;
+        let firstError = '';
+
+        requiredFields.forEach(field => {
+          const element = document.getElementById(field.id);
+          if (!element) return;
+
+          // 特別な処理：件名が「新規」の場合は新規入力をチェック
+          let value = element.value?.trim() || '';
+          if (field.id === 'titleSelect' && value === '新規') {
+            const titleInput = document.getElementById('titleInput');
+            value = titleInput?.value?.trim() || '';
+          }
+
+          const isFieldValid = value.length > 0;
+          
+          // スタイル更新
+          element.style.borderColor = isFieldValid ? '#e0e0e0' : '#e74c3c';
+          
+          if (!isFieldValid) {
+            isValid = false;
+            if (!firstError) firstError = field.name;
+          }
+        });
+
+        // 送信ボタンの状態更新
+        const submitBtn = document.getElementById('sendBtn');
+        if (submitBtn) {
+          submitBtn.disabled = !isValid || !appState.isFormReady;
+        }
+
+        return { isValid, firstError };
+      }
+    };
+
+    // LIFF関連の処理
+    const liffManager = {
+      async initialize() {
+        try {
+          if (!CONFIG.LIFF_ENABLED) {
+            utils.log('LIFF無効モード - スキップ');
+            appState.currentUserId = 'test_user_' + Date.now();
+            document.getElementById('uid').value = appState.currentUserId;
+            appState.isLiffReady = true;
+            return true;
+          }
+
+          utils.log('LIFF初期化開始');
+          utils.showStatus('LIFF初期化中...', 'info');
+
+          // LIFF SDKの読み込み確認
+          if (typeof liff === 'undefined') {
+            throw new Error('LIFF SDKが読み込まれていません');
+          }
+
+          // LIFF ID取得
+          const response = await fetch(`${CONFIG.GAS_ENDPOINT}?mode=getLiffId&t=${Date.now()}`);
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+          }
+
+          const liffId = await response.text();
+          utils.log('LIFF ID取得', liffId);
+
+          if (!liffId || liffId.includes('<') || liffId.includes('エラー')) {
+            throw new Error('無効なLIFF IDが返されました');
+          }
+
+          // LIFF初期化
+          await liff.init({ liffId: liffId.trim() });
+          utils.log('LIFF SDK初期化完了');
+
+          // ログイン確認
+          if (!liff.isLoggedIn()) {
+            utils.log('未ログイン状態 - ログイン画面へリダイレクト');
+            liff.login();
+            return false;
+          }
+
+          // プロフィール取得
+          const profile = await liff.getProfile();
+          appState.currentUserId = profile.userId;
+          document.getElementById('uid').value = appState.currentUserId;
+          
+          utils.log('ユーザー情報取得完了', { 
+            userId: profile.userId.substring(0, 10) + '...',
+            displayName: profile.displayName 
+          });
+          
+          appState.isLiffReady = true;
+          utils.showStatus('LIFF初期化完了', 'success');
+          return true;
+
+        } catch (error) {
+          utils.log('LIFF初期化エラー', error);
+          utils.showStatus(`LIFF初期化エラー: ${error.message}`, 'error');
+          
+          // フォールバック: テストモードで続行
+          appState.currentUserId = 'test_user_fallback_' + Date.now();
+          document.getElementById('uid').value = appState.currentUserId;
+          appState.isLiffReady = true;
+          
+          utils.showStatus('テストモードで続行します', 'info');
+          return true;
+        }
+      }
+    };
+
+    // データ管理
+    const dataManager = {
+      async loadTitles() {
+        try {
+          utils.log('件名一覧読み込み開始');
+          
+          const response = await fetch(`${CONFIG.GAS_ENDPOINT}?mode=getTitles&t=${Date.now()}`);
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+          }
+
+          const titles = await response.json();
+          appState.titles = Array.isArray(titles) ? titles : [];
+          
+          utils.log('件名読み込み完了', { count: appState.titles.length });
+
+          // セレクトボックス更新
+          const select = document.getElementById('titleSelect');
+          if (select) {
+            // 既存オプションをクリア
+            select.innerHTML = '<option value="">選択してください</option><option value="新規">新規作成</option>';
+            
+            // 取得した件名を追加（未着手・着手中のみ）
+            appState.titles.forEach(title => {
+              if (title && title.trim()) {
+                const option = document.createElement('option');
+                option.value = title.trim();
+                option.textContent = title.trim();
+                select.appendChild(option);
+              }
+            });
+          }
+
+        } catch (error) {
+          utils.log('件名読み込みエラー', error);
+          utils.showStatus('件名の読み込みに失敗しました', 'error');
+        }
+      },
+
+      async submitForm(formData) {
+        try {
+          utils.log('フォーム送信開始', formData);
+          utils.showStatus('送信中...', 'info');
+
+          // デバッグ情報をGASに送信
+          const debugInfo = document.getElementById('debugInfo').innerHTML;
+          formData.debugInfo = debugInfo;
+
+          const params = new URLSearchParams();
+          Object.keys(formData).forEach(key => {
+            params.append(key, formData[key]);
+          });
+
+          const response = await fetch(CONFIG.GAS_ENDPOINT, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: params.toString()
+          });
+
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+          }
+
+          const result = await response.text();
+          utils.log('送信結果', result);
+
+          if (result.includes('記録完了')) {
+            utils.showStatus('送信が完了しました！', 'success');
+            this.resetForm();
+            return true;
+          } else if (result.includes('エラー')) {
+            throw new Error(result);
+          } else {
+            utils.showStatus(`送信完了: ${result}`, 'success');
+            return true;
+          }
+
+        } catch (error) {
+          utils.log('送信エラー', error);
+          utils.showStatus(`送信エラー: ${error.message}`, 'error');
+          return false;
+        }
+      },
+
+      resetForm() {
+        const form = document.getElementById('qaForm');
+        if (form) {
+          form.reset();
+          document.getElementById('uid').value = appState.currentUserId;
+          document.getElementById('titleInputWrapper').classList.add('hidden');
+          utils.validateForm();
+        }
+      }
+    };
+
+    // イベントハンドラー
+    const eventHandlers = {
+      setupFormEvents() {
+        // バリデーション対象フィールドにイベント追加
+        const fields = ['responder', 'titleSelect', 'titleInput', 'question', 'answer', 'cause', 'statusSelect'];
+        fields.forEach(fieldId => {
+          const element = document.getElementById(fieldId);
+          if (element) {
+            element.addEventListener('input', utils.validateForm);
+            element.addEventListener('change', utils.validateForm);
+          }
+        });
+
+        // 件名選択の特別処理
+        const titleSelect = document.getElementById('titleSelect');
+        if (titleSelect) {
+          titleSelect.addEventListener('change', (e) => {
+            const wrapper = document.getElementById('titleInputWrapper');
+            const input = document.getElementById('titleInput');
+            
+            if (e.target.value === '新規') {
+              wrapper.classList.remove('hidden');
+              input.required = true;
+            } else {
+              wrapper.classList.add('hidden');
+              input.required = false;
+              input.value = '';
+            }
+            utils.validateForm();
+          });
+        }
+
+        // フォーム送信
+        const form = document.getElementById('qaForm');
+        if (form) {
+          form.addEventListener('submit', this.handleSubmit);
+        }
+      },
+
+      async handleSubmit(e) {
+        e.preventDefault();
+        
+        const validation = utils.validateForm();
+        if (!validation.isValid) {
+          utils.showStatus(`${validation.firstError}を入力してください`, 'error');
+          return;
+        }
+
+        // 送信ボタンを無効化
+        const submitBtn = document.getElementById('sendBtn');
+        if (submitBtn) {
+          submitBtn.disabled = true;
+        }
+
+        try {
+          // フォームデータを収集
+          const formData = {
+            uid: document.getElementById('uid').value,
+            responder: document.getElementById('responder').value,
+            title: document.getElementById('titleSelect').value === '新規' 
+              ? document.getElementById('titleInput').value 
+              : document.getElementById('titleSelect').value,
+            question: document.getElementById('question').value,
+            answer: document.getElementById('answer').value,
+            cause: document.getElementById('cause').value,
+            status: document.getElementById('statusSelect').value
+          };
+
+          // 送信実行
+          await dataManager.submitForm(formData);
+
+        } finally {
+          // 送信ボタンを再有効化
+          setTimeout(() => {
+            if (submitBtn) {
+              submitBtn.disabled = false;
+            }
+            utils.validateForm();
+          }, 2000);
+        }
+      }
+    };
+
+    // アプリケーション初期化
+    async function initializeApp() {
+      try {
+        utils.log('アプリケーション初期化開始');
+
+        // デバッグモード設定
+        if (CONFIG.DEBUG_MODE) {
+          document.getElementById('debugPanel').classList.remove('hidden');
+        }
+
+        // LIFF初期化
+        const liffSuccess = await liffManager.initialize();
+        if (!liffSuccess) {
+          return; // ログインリダイレクトの場合
+        }
+
+        // データ読み込み
+        await dataManager.loadTitles();
+
+        // イベント設定
+        eventHandlers.setupFormEvents();
+
+        // アプリ準備完了
+        appState.isFormReady = true;
+        utils.validateForm();
+        
+        utils.log('アプリケーション初期化完了');
+        utils.showStatus('準備完了', 'success');
+
+      } catch (error) {
+        utils.log('初期化エラー', error);
+        utils.showStatus(`初期化エラー: ${error.message}`, 'error');
+      } finally {
+        // ローディング非表示
+        setTimeout(utils.hideLoading, 1000);
+      }
     }
-  }
 
-  window.addEventListener("DOMContentLoaded", async () => {
-    await initializeLiff();
-    await loadTitles();
-  });
-
-  document.getElementById("sendBtn").addEventListener("click", () => {
-    const uid = document.getElementById("uid").value;
-    const responder = document.getElementById("responder").value.trim();
-    const title = document.getElementById("title").value.trim();
-    const question = document.getElementById("question").value.trim();
-    const answer = document.getElementById("answer").value.trim();
-    const cause = document.getElementById("cause").value.trim();
-    const status = document.getElementById("statusSelect").value.trim();
-
-    if (!uid || !responder || !title || !question || !status) {
-      document.getElementById("status").textContent = "❌ 必須項目が未入力です。";
-      return;
+    // DOMContentLoaded時の処理
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', initializeApp);
+    } else {
+      initializeApp();
     }
 
-    const payload = new FormData();
-    payload.append("uid", uid);
-    payload.append("responder", responder);
-    payload.append("title", title);
-    payload.append("question", question);
-    payload.append("answer", answer);
-    payload.append("cause", cause);
-    payload.append("status", status);
+    // LIFF SDKの動的読み込み（フォールバック）
+    if (typeof liff === 'undefined' && CONFIG.LIFF_ENABLED) {
+      utils.log('LIFF SDK動的読み込み');
+      const script = document.createElement('script');
+      script.src = 'https://static.line-scdn.net/liff/edge/2/sdk.js';
+      script.onload = () => utils.log('LIFF SDK読み込み完了');
+      script.onerror = () => utils.log('LIFF SDK読み込み失敗');
+      document.head.appendChild(script);
+    }
 
-    const photo1 = document.getElementById("photo1").files[0];
-    const photo2 = document.getElementById("photo2").files[0];
-    if (photo1) payload.append("photo1", photo1);
-    if (photo2) payload.append("photo2", photo2);
+    // ページ可視性変更の監視
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden && !appState.isLiffReady) {
+        utils.log('ページ再表示 - 再初期化');
+        initializeApp();
+      }
+    });
 
-    document.getElementById("status").textContent = "送信中...";
+    // エラーハンドリング
+    window.addEventListener('error', (e) => {
+      utils.log('グローバルエラー', e.error);
+      utils.showStatus('予期しないエラーが発生しました', 'error');
+    });
 
-    fetch(GAS_ENDPOINT, {
-      method: "POST",
-      body: payload
-    })
-      .then(res => res.text())
-      .then(result => {
-        document.getElementById("status").textContent = "✅ 送信完了：" + result;
-      })
-      .catch(err => {
-        document.getElementById("status").textContent = "❌ 送信失敗：" + err;
-      });
-  });
-</script>
+  </script>
+</body>
+</html>
